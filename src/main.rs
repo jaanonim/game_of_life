@@ -170,7 +170,7 @@ impl State for GameState {
 }
 
 fn main() -> tetra::Result {
-    ContextBuilder::new("Pong", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
+    ContextBuilder::new("Game of Life", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
         .quit_on_escape(true)
         .show_mouse(true)
         .build()?
