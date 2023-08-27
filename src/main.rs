@@ -14,6 +14,12 @@ struct GameState {
     mouse_position: Vec2<f32>,
     blocks: Vec<Block>,
     mouse_lock: bool,
+    space_lock: bool,
+}
+
+struct NeighborsInfo {
+    pub count: i32,
+    pub positions: Vec<Vec2<f32>>,
 }
 
 impl GameState {
@@ -23,7 +29,81 @@ impl GameState {
             mouse_position: Vec2::new(0.0, 0.0),
             blocks: vec![],
             mouse_lock: false,
+            space_lock: false,
         })
+    }
+
+    fn update(&mut self) {
+        println!("Update {}", self.blocks.len());
+        let mut to_del: Vec<Vec2<f32>> = vec![];
+        let mut to_spawn: Vec<Vec2<f32>> = vec![];
+        for block in self.blocks.clone() {
+            let pos = block.pos;
+
+            let nb = self.get_neighbors(pos);
+
+            if match nb.count {
+                1 => true,
+                2 | 3 => false,
+                _ => true,
+            } {
+                to_del.push(pos);
+            }
+
+            for pos in nb.positions {
+                if self.get_neighbors(pos).count == 3 && !to_spawn.contains(&pos) {
+                    to_spawn.push(pos)
+                }
+            }
+        }
+
+        for pos in to_del {
+            if let Some(idx) = self
+                .blocks
+                .iter()
+                .position(|item| item.pos.x == pos.x && item.pos.y == pos.y)
+            {
+                self.blocks.remove(idx);
+            }
+        }
+        for pos in to_spawn {
+            self.blocks.push(Block::new(pos.x, pos.y));
+        }
+    }
+
+    fn get_neighbors(&mut self, pos: Vec2<f32>) -> NeighborsInfo {
+        let dirs: Vec<Vec2<f32>> = vec![
+            Vec2::new(1.0, 0.0),
+            Vec2::new(-1.0, 0.0),
+            Vec2::new(0.0, 1.0),
+            Vec2::new(0.0, -1.0),
+            Vec2::new(1.0, -1.0),
+            Vec2::new(-1.0, 1.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(-1.0, -1.0),
+        ];
+
+        let mut positions: Vec<Vec2<f32>> = vec![];
+        let mut count: usize = 0;
+
+        for dir in dirs {
+            let x = pos.x + dir.x;
+            let y = pos.y + dir.y;
+
+            if let Some(_b) = self
+                .blocks
+                .iter()
+                .find(|item| item.pos.x == x && item.pos.y == y)
+            {
+                count += 1;
+            } else {
+                positions.push(Vec2::new(x, y))
+            }
+        }
+        NeighborsInfo {
+            count: count as i32,
+            positions,
+        }
     }
 }
 
@@ -46,6 +126,15 @@ impl State for GameState {
             }
         } else if input::is_mouse_button_up(ctx, MouseButton::Left) {
             self.mouse_lock = false;
+        }
+
+        if input::is_key_down(ctx, input::Key::Space) {
+            if !self.space_lock {
+                self.space_lock = true;
+                self.update();
+            }
+        } else {
+            self.space_lock = false;
         }
 
         graphics::clear(ctx, Color::rgb(0.1, 0.1, 0.1));

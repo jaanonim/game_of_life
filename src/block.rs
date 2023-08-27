@@ -1,6 +1,6 @@
 use tetra::math::Vec2;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub struct Block {
     pub is_alive: bool,
     pub pos: Vec2<f32>,
