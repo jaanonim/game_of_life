@@ -1,6 +1,6 @@
 use block::Block;
 use tetra::graphics::{self, Color, DrawParams, Texture};
-use tetra::input::MouseButton;
+use tetra::input::{Key, MouseButton};
 use tetra::math::Vec2;
 use tetra::{input, Context, ContextBuilder, State};
 pub mod block;
@@ -8,13 +8,15 @@ pub mod block;
 const WINDOW_WIDTH: f32 = 640.0;
 const WINDOW_HEIGHT: f32 = 480.0;
 const SCALE: f32 = 16.0;
+const MOVEMENT_SPEED: f32 = 4.0;
 
 struct GameState {
     texture: Texture,
     mouse_position: Vec2<f32>,
     blocks: Vec<Block>,
     mouse_lock: bool,
-    space_lock: bool,
+    space_counter: u8,
+    camera_pos: Vec2<f32>,
 }
 
 struct NeighborsInfo {
@@ -29,7 +31,8 @@ impl GameState {
             mouse_position: Vec2::new(0.0, 0.0),
             blocks: vec![],
             mouse_lock: false,
-            space_lock: false,
+            space_counter: 0,
+            camera_pos: Vec2::new(0.0, 0.0),
         })
     }
 
@@ -108,12 +111,28 @@ impl GameState {
 }
 
 impl State for GameState {
-    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
+    fn update(&mut self, ctx: &mut Context) -> Result<(), tetra::TetraError> {
+        if input::is_key_down(ctx, Key::W) {
+            self.camera_pos.y -= MOVEMENT_SPEED;
+        }
+
+        if input::is_key_down(ctx, Key::S) {
+            self.camera_pos.y += MOVEMENT_SPEED;
+        }
+
+        if input::is_key_down(ctx, Key::A) {
+            self.camera_pos.x -= MOVEMENT_SPEED;
+        }
+
+        if input::is_key_down(ctx, Key::D) {
+            self.camera_pos.x += MOVEMENT_SPEED;
+        }
+
         self.mouse_position = input::get_mouse_position(ctx).round();
         if input::is_mouse_button_down(ctx, MouseButton::Left) && !self.mouse_lock {
             self.mouse_lock = true;
-            let x = (self.mouse_position.x as i32 / SCALE as i32) as f32;
-            let y = (self.mouse_position.y as i32 / SCALE as i32) as f32;
+            let x = ((self.mouse_position.x + self.camera_pos.x) / SCALE).floor();
+            let y = ((self.mouse_position.y + self.camera_pos.y) / SCALE).floor();
 
             if let Some(idx) = self
                 .blocks
@@ -129,26 +148,38 @@ impl State for GameState {
         }
 
         if input::is_key_down(ctx, input::Key::Space) {
-            if !self.space_lock {
-                self.space_lock = true;
+            if self.space_counter == 0 {
+                self.space_counter = 5;
                 self.update();
+            } else {
+                self.space_counter -= 1;
             }
         } else {
-            self.space_lock = false;
+            self.space_counter = 0;
         }
 
+        Ok(())
+    }
+
+    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         graphics::clear(ctx, Color::rgb(0.1, 0.1, 0.1));
 
-        for x in (0..(WINDOW_WIDTH as i32)).step_by(SCALE as usize) {
-            for y in (0..(WINDOW_HEIGHT as i32)).step_by(SCALE as usize) {
-                if self.blocks.contains(&Block::new(
-                    (x / SCALE as i32) as f32,
-                    (y / SCALE as i32) as f32,
-                )) {
+        let range_x = (self.camera_pos.x / SCALE) as i32 - 1
+            ..((WINDOW_WIDTH + self.camera_pos.x) / SCALE) as i32 + 1;
+
+        for x in range_x {
+            let range_y = (self.camera_pos.y / SCALE) as i32 - 1
+                ..((WINDOW_HEIGHT + self.camera_pos.y) / SCALE) as i32 + 1;
+
+            for y in range_y {
+                let screen_x = x as f32 * SCALE - self.camera_pos.x;
+                let screen_y = y as f32 * SCALE - self.camera_pos.y;
+
+                if self.blocks.contains(&Block::new(x as f32, y as f32)) {
                     self.texture.draw(
                         ctx,
                         DrawParams::new()
-                            .position(Vec2::new(x as f32, y as f32))
+                            .position(Vec2::new(screen_x, screen_y))
                             .origin(Vec2::new(0.0, 0.0))
                             .scale(Vec2::new(SCALE - 1.0, SCALE - 1.0)),
                     );
@@ -156,7 +187,7 @@ impl State for GameState {
                     self.texture.draw(
                         ctx,
                         DrawParams::new()
-                            .position(Vec2::new(x as f32, y as f32))
+                            .position(Vec2::new(screen_x, screen_y))
                             .origin(Vec2::new(0.0, 0.0))
                             .scale(Vec2::new(SCALE - 1.0, SCALE - 1.0))
                             .color(Color::rgb(0.0, 0.0, 0.0)),
