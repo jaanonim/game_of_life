@@ -7,8 +7,8 @@ pub mod block;
 
 const WINDOW_WIDTH: f32 = 640.0;
 const WINDOW_HEIGHT: f32 = 480.0;
-const SCALE: f32 = 16.0;
 const MOVEMENT_SPEED: f32 = 4.0;
+const ZOOM_SPEED: f32 = 1.0;
 
 struct GameState {
     texture: Texture,
@@ -17,6 +17,7 @@ struct GameState {
     mouse_lock: bool,
     space_counter: u8,
     camera_pos: Vec2<f32>,
+    scale: f32,
 }
 
 struct NeighborsInfo {
@@ -33,6 +34,7 @@ impl GameState {
             mouse_lock: false,
             space_counter: 0,
             camera_pos: Vec2::new(0.0, 0.0),
+            scale: 16.0,
         })
     }
 
@@ -128,11 +130,20 @@ impl State for GameState {
             self.camera_pos.x += MOVEMENT_SPEED;
         }
 
+        if input::is_mouse_scrolled_up(ctx) {
+            self.scale += ZOOM_SPEED;
+        }
+
+        if input::is_mouse_scrolled_down(ctx) {
+            self.scale -= ZOOM_SPEED;
+        }
+        self.scale = self.scale.clamp(5.0, 100.0);
+
         self.mouse_position = input::get_mouse_position(ctx).round();
         if input::is_mouse_button_down(ctx, MouseButton::Left) && !self.mouse_lock {
             self.mouse_lock = true;
-            let x = ((self.mouse_position.x + self.camera_pos.x) / SCALE).floor();
-            let y = ((self.mouse_position.y + self.camera_pos.y) / SCALE).floor();
+            let x = ((self.mouse_position.x + self.camera_pos.x) / self.scale).floor();
+            let y = ((self.mouse_position.y + self.camera_pos.y) / self.scale).floor();
 
             if let Some(idx) = self
                 .blocks
@@ -164,16 +175,16 @@ impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         graphics::clear(ctx, Color::rgb(0.1, 0.1, 0.1));
 
-        let range_x = (self.camera_pos.x / SCALE) as i32 - 1
-            ..((WINDOW_WIDTH + self.camera_pos.x) / SCALE) as i32 + 1;
+        let range_x = (self.camera_pos.x / self.scale) as i32 - 1
+            ..((WINDOW_WIDTH + self.camera_pos.x) / self.scale) as i32 + 1;
 
         for x in range_x {
-            let range_y = (self.camera_pos.y / SCALE) as i32 - 1
-                ..((WINDOW_HEIGHT + self.camera_pos.y) / SCALE) as i32 + 1;
+            let range_y = (self.camera_pos.y / self.scale) as i32 - 1
+                ..((WINDOW_HEIGHT + self.camera_pos.y) / self.scale) as i32 + 1;
 
             for y in range_y {
-                let screen_x = x as f32 * SCALE - self.camera_pos.x;
-                let screen_y = y as f32 * SCALE - self.camera_pos.y;
+                let screen_x = x as f32 * self.scale - self.camera_pos.x;
+                let screen_y = y as f32 * self.scale - self.camera_pos.y;
 
                 if self.blocks.contains(&Block::new(x as f32, y as f32)) {
                     self.texture.draw(
@@ -181,7 +192,7 @@ impl State for GameState {
                         DrawParams::new()
                             .position(Vec2::new(screen_x, screen_y))
                             .origin(Vec2::new(0.0, 0.0))
-                            .scale(Vec2::new(SCALE - 1.0, SCALE - 1.0)),
+                            .scale(Vec2::new(self.scale - 1.0, self.scale - 1.0)),
                     );
                 } else {
                     self.texture.draw(
@@ -189,7 +200,7 @@ impl State for GameState {
                         DrawParams::new()
                             .position(Vec2::new(screen_x, screen_y))
                             .origin(Vec2::new(0.0, 0.0))
-                            .scale(Vec2::new(SCALE - 1.0, SCALE - 1.0))
+                            .scale(Vec2::new(self.scale - 1.0, self.scale - 1.0))
                             .color(Color::rgb(0.0, 0.0, 0.0)),
                     );
                 }
